@@ -42,18 +42,19 @@
 
 /*
 TODO
-- upload
 - fix texture issues:
 	- numbers
-	- exit signs
-	- fire alarms
-- fix bake:
-	- glass
+- fix movement (combersome!)
+- add baking for doors (at least the closed one)
+- glass visibility
+- fix wall bake:
 	- fix lack of shadows from signs, fire alarm
 	- fix missing lights from sconces
-	- add baking for doors
 	- fix seams
 - automove (demo) option
+- optimize:
+	- sign doesn't need the resolution it has
+	- make ceiling flat with baked
 */
 
 const col_white = new _b.Color3(1, 1, 1);
@@ -79,7 +80,7 @@ function moveToNav(nav)
 	{
 		n.hitbox.isPickable = false;
 		n.material = _e.navMatNorm;
-//		n.setEnabled(false);
+		n.setEnabled(false);
 	}
 
 	_e.currentNav = nav;
@@ -102,11 +103,11 @@ function moveToNav(nav)
 		_e.myCam,
 		'position',
 		60,
-		30,
+		15,
 		_e.myCam.position.clone(),
 		targetPos,
 		_b.Animation.ANIMATIONLOOPMODE_CONSTANT,
-		new _b.CubicEase(),
+		new _b.SineEase(),
 		() => {
 			_isAnimating = false;
 			_e.myCam.attachControl(_b.myCanvas, true);
