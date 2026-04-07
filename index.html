@@ -1,0 +1,304 @@
+<!doctype html><html><head ><title>Sola: Site Walk Tour</title><style>
+
+	html,body
+	{
+		width: 100%;
+		height: 100%;
+		margin: 0;
+		padding: 0;
+		overflow: hidden;
+		color: white;
+		background-color: black;
+
+		display: flex;
+		flex-direction: column;
+	}
+	#babylonScene
+	{
+		width: 100%;
+		height: 100%;
+		touch-action: none;
+	}
+	#moveHighlight
+	{
+		text-align: center;
+		background-color: #3f4850;
+		font-size: 250%;
+		border-top: gray outset 8px;
+		padding: .125em;
+	}
+	#moveHighlight.hovering
+	{
+		background-color: yellow;
+		border-color: orange;
+	}
+
+</style><link rel="icon" href="icon.png"><script src="https://cdn.babylonjs.com/babylon.js"></script><script src="babylon_helper.js"></script><script src="babylonjs.loaders.min.js"></script><script src="babylon.gui.min.js"></script></head><body>
+
+	<canvas id="babylonScene"></canvas>
+	<div id="moveHighlight">&#128099;</div>
+
+</body></html><script>
+
+/*
+TODO
+- upload
+- fix texture issues:
+	- numbers
+	- exit signs
+	- fire alarms
+- fix bake:
+	- glass
+	- fix lack of shadows from signs, fire alarm
+	- fix missing lights from sconces
+	- add baking for doors
+	- fix seams
+- automove (demo) option
+*/
+
+const col_white = new _b.Color3(1, 1, 1);
+const maxClickDistSquared = 32;
+let MAP_SCALE = 9.4;
+let MAP_OFFSET_X = 178;
+let MAP_OFFSET_Y = 115;
+
+let _isAnimating = false;
+let _navById = {};
+window.navs = [];
+let currentHovered = null;
+let ptrDownPosition = [9999, 9999];
+let hud = null;
+let icon_youAreHere = null;
+
+function moveToNav(nav)
+{
+	if (_isAnimating) return;
+
+	// Disable all navs
+	for (const n of window.navs)
+	{
+		n.hitbox.isPickable = false;
+		n.material = _e.navMatNorm;
+//		n.setEnabled(false);
+	}
+
+	_e.currentNav = nav;
+
+	// Enable only neighbors
+	for (const neighbor of nav.neighbors)
+	{
+		neighbor.hitbox.isPickable = true;
+		neighbor.setEnabled(true);
+	}
+
+	const targetPos = nav.position.clone();
+	targetPos.y = 1.5;
+
+	_isAnimating = true;
+	_e.myCam.detachControl();
+
+	_b.Animation.CreateAndStartAnimation(
+		'cameraMove',
+		_e.myCam,
+		'position',
+		60,
+		30,
+		_e.myCam.position.clone(),
+		targetPos,
+		_b.Animation.ANIMATIONLOOPMODE_CONSTANT,
+		new _b.CubicEase(),
+		() => {
+			_isAnimating = false;
+			_e.myCam.attachControl(_b.myCanvas, true);
+		}
+	);
+}
+
+function createNav(name, position, isStart)
+{
+	// Parse ID and extra neighbor from name (e.g., "Nav.003,7" → id=3, extraNeighbor=7)
+	const idMatch = name.match(/Nav\.(\d+)/);
+	const commaMatch = name.match(/,(\d+)$/);
+	const navId = idMatch ? parseInt(idMatch[1], 10) : null;
+	const extraNeighborId = commaMatch ? parseInt(commaMatch[1], 10) : null;
+
+	const newNav = _b.MeshBuilder.CreateBox(name, {}, _b.myScene);
+	newNav.metadata = { isNavNode: true };
+	newNav.navId = navId;
+	newNav.extraNeighborId = extraNeighborId;
+	_navById[navId] = newNav;
+	newNav.scaling.setAll(.25);
+	newNav.material = _e.navMatNorm;
+	newNav.position.copyFrom(position.multiply(new _b.Vector3(-1, 0, 1)));
+	newNav.visibility = 0;
+
+	newNav.hitbox = _b.MeshBuilder.CreateBox("navHitbox", {size: 1.5, height: 2}, _b.myScene);
+	newNav.hitbox.position.copyFrom(newNav.position);
+	newNav.hitbox.metadata = { isNavHitbox: true, naveNode: newNav };
+	newNav.hitbox.position.y = 1;
+	newNav.hitbox.visibility = 0;
+
+	navs.push(newNav);
+	return isStart ? newNav : null;
+}
+
+function onNavHover(value)
+{
+	value.material = _e.navMatHigh;
+	document.getElementById('moveHighlight').classList.add('hovering');
+}
+
+function onNavUnhover(value)
+{
+	value.material = _e.navMatNorm;
+	document.getElementById('moveHighlight').classList.remove('hovering');
+}
+
+startBabylon('babylonScene', async function()
+{
+	// Camera
+	_e.myCam = new _b.FreeCamera('camera1', _b.Vector3.Zero(), _b.myScene);
+	//_e.myCam.setTarget(_b.Vector3.Zero());
+	_e.myCam.attachControl(_b.myCanvas, true);
+	_e.myCam.minZ = 0.01;
+
+	// Scene geometry
+	_e.myGeom = await _b.ImportMeshAsync('pramod_sola.glb', _b.myScene);
+
+	// No lighting
+	_b.myScene.ambientColor = col_white;
+	for (const material of _b.myScene.materials)
+	{
+		material.ambientColor = col_white;
+	}
+
+	// Nav-node materials
+	_e.navMatNorm = new _b.StandardMaterial("navMatNorm", _b.myScene);
+	_e.navMatNorm.emissiveColor = new _b.Color3(0.25, 0.25, 0.25);
+	_e.navMatHigh = new _b.StandardMaterial("navMatHigh", _b.myScene);
+	_e.navMatHigh.emissiveColor = new _b.Color3(1, 1, 0);
+
+	// Navs
+	let startNav = null;
+	for (const node of _b.myScene.transformNodes)
+	{
+		if (node.name.startsWith('Nav'))
+		{
+			const result = createNav(node.name, node.position, (node.name === 'Nav.001'));
+			if (result) startNav = result;
+		}
+	}
+
+	// Resolve neighbor relationships (based on array order + comma-specified extras)
+	for (let i = 0; i < window.navs.length; i++)
+	{
+		const nav = window.navs[i];
+		nav.neighbors = [];
+		// Next nav in array order is a neighbor
+		if (i + 1 < window.navs.length)// && (Math.abs(nav.navId - window.navs[i + 1].navId) <= 10))
+		{
+			nav.neighbors.push(window.navs[i + 1]);
+		}
+		// Previous nav in array order is a neighbor
+		if (i - 1 >= 0)// && (Math.abs(nav.navId - window.navs[i - 1].navId) <= 10))
+		{
+			nav.neighbors.push(window.navs[i - 1]);
+		}
+		// Add comma-specified extra neighbor
+		if (nav.extraNeighborId !== null && _navById[nav.extraNeighborId])
+		{
+			nav.neighbors.push(_navById[nav.extraNeighborId]);
+			// Make bidirectional
+			const extraNeighbor = _navById[nav.extraNeighborId];
+			if (!extraNeighbor.neighbors) extraNeighbor.neighbors = [];
+			if (!extraNeighbor.neighbors.includes(nav))
+			{
+				extraNeighbor.neighbors.push(nav);
+			}
+		}
+	}
+
+	// Move to start nav
+	if (startNav)
+	{
+		moveToNav(startNav);
+	}
+
+	_e.myCam.setTarget(_e.myCam.position.add(new _b.Vector3(0, 0, -1)));	
+
+	// Disable free-cam movement
+	_e.myCam.keysDown = _e.myCam.keysDownward = _e.myCam.keysLeft = _e.myCam.keysRight = 
+	_e.myCam.keysUp = _e.myCam.keysUpward = _e.myCam.keysUpwards = 
+	_e.myCam.keysRotateDown = _e.myCam.keysRotateLeft = _e.myCam.keysRotateRight = _e.myCam.keysRotateUp = [];
+
+	// Map
+	hud = _b.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
+	let map = new _b.GUI.Image("map", "map.png");
+		map.width = "359px";
+		map.height = "249px";
+		map.horizontalAlignment = _b.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+		map.verticalAlignment = _b.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+		map.left = "10px";
+		map.top = "10px";
+		hud.addControl(map);
+	icon_youAreHere = new BABYLON.GUI.Image("marker", "map_youAreHere.png");
+		icon_youAreHere.width = "20px";
+		icon_youAreHere.height = "32px";
+		icon_youAreHere.horizontalAlignment = _b.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
+		icon_youAreHere.verticalAlignment = _b.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+		icon_youAreHere.transformCenterX = 50 / 100;
+		icon_youAreHere.transformCenterY = 110 / 160;
+		hud.addControl(icon_youAreHere);
+		
+
+	// Game tick
+	_b.myScene.registerBeforeRender(() =>
+	{
+		// Navigation handling (highlights and moving)
+		const ray = _e.myCam.getForwardRay(100);
+		const hit = _b.myScene.pickWithRay(ray, mesh => (mesh.metadata?.isNavHitbox) && mesh.isPickable);
+		const newHit = hit.hit ? hit.pickedMesh.metadata.naveNode : null;
+		if (newHit !== currentHovered)
+		{
+			if (currentHovered)
+			{
+				onNavUnhover(currentHovered);
+			}
+			if (newHit)
+			{
+				onNavHover(newHit);
+			}
+			currentHovered = newHit;
+		}
+
+		// Update map "you are here"
+		icon_youAreHere.rotation = _e.myCam.rotation.y + Math.PI;
+		let p = _e.myCam.position;
+		icon_youAreHere.left = p.x * -MAP_SCALE + MAP_OFFSET_X;
+		icon_youAreHere.top = p.z * MAP_SCALE + MAP_OFFSET_Y;
+	});
+
+	_b.myCanvas.addEventListener("pointerdown", evt =>
+	{
+		ptrDownPosition[0] = evt.clientX;
+		ptrDownPosition[1] = evt.clientY;
+	});
+	_b.myCanvas.addEventListener("pointerup", evt =>
+	{
+		const ptrPosition = [ evt.clientX, evt.clientY ];
+		const clickDistanceSquared = Math.pow(ptrPosition[0] - ptrDownPosition[0], 2) + Math.pow(ptrPosition[1] - ptrDownPosition[1], 2);
+		if (currentHovered && clickDistanceSquared < maxClickDistSquared)
+		{
+			moveToNav(currentHovered);
+		}
+	});
+	window.addEventListener("keydown", (event) =>
+	{
+		if (currentHovered)
+		{
+			moveToNav(currentHovered);
+		}
+	});
+});
+
+</script>
