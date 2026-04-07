@@ -45,11 +45,11 @@
 /*
 TODO
 - add baking for doors (at least the closed ones)
-- glass visibility
 - fix wall bake:
 	- fix lack of shadows from signs, fire alarm
 	- fix missing lights from sconces
 	- fix seams
+- get better reflection env
 - automove (demo) option
 - optimize:
 	- sign doesn't need the resolution it has
@@ -171,6 +171,14 @@ startBabylon('babylonScene', async function()
 	{
 		material.ambientColor = col_white;
 	}
+
+	// Reflection environment
+	const envTexture = BABYLON.CubeTexture.CreateFromPrefilteredData(
+		"https://assets.babylonjs.com/environments/environmentSpecular.env",
+		_b.myScene
+	);
+	_b.myScene.environmentTexture = envTexture;
+	_b.myScene.environmentIntensity = 0.5;
 
 	// Nav-node materials
 	_e.navMatNorm = new _b.StandardMaterial("navMatNorm", _b.myScene);
