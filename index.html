@@ -22,30 +22,29 @@
 	#moveHighlight
 	{
 		text-align: center;
-		background-color: #3f4850;
 		font-size: 250%;
-		border-top: gray outset 8px;
 		padding: .125em;
+		cursor: pointer;
+		background-color: #3f4850;
+		border: #3f4850 solid 8px;
+		border-top: gray outset 8px;
 	}
 	#moveHighlight.hovering
 	{
 		background-color: yellow;
-		border-color: orange;
+		border: orange outset 8px;
 	}
 
 </style><link rel="icon" href="icon.png"><script src="https://cdn.babylonjs.com/babylon.js"></script><script src="babylon_helper.js"></script><script src="babylonjs.loaders.min.js"></script><script src="babylon.gui.min.js"></script></head><body>
 
 	<canvas id="babylonScene"></canvas>
-	<div id="moveHighlight">&#128099;</div>
+	<button id="moveHighlight">&#128099;</button>
 
 </body></html><script>
 
 /*
 TODO
-- fix texture issues:
-	- numbers
-- fix movement (combersome!)
-- add baking for doors (at least the closed one)
+- add baking for doors (at least the closed ones)
 - glass visibility
 - fix wall bake:
 	- fix lack of shadows from signs, fire alarm
@@ -289,6 +288,13 @@ startBabylon('babylonScene', async function()
 		const ptrPosition = [ evt.clientX, evt.clientY ];
 		const clickDistanceSquared = Math.pow(ptrPosition[0] - ptrDownPosition[0], 2) + Math.pow(ptrPosition[1] - ptrDownPosition[1], 2);
 		if (currentHovered && clickDistanceSquared < maxClickDistSquared)
+		{
+			moveToNav(currentHovered);
+		}
+	});
+	document.getElementById('moveHighlight').addEventListener("click", evt =>
+	{
+		if (currentHovered)
 		{
 			moveToNav(currentHovered);
 		}
