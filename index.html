@@ -19,6 +19,10 @@
 		height: 100%;
 		touch-action: none;
 	}
+	.dragged
+	{
+		cursor: none;
+	}
 	#moveHighlight
 	{
 		text-align: center;
@@ -38,29 +42,16 @@
 </style><link rel="icon" href="icon.png"><script src="https://cdn.babylonjs.com/babylon.js"></script><script src="babylon_helper.js"></script><script src="babylonjs.loaders.min.js"></script><script src="babylon.gui.min.js"></script></head><body>
 
 	<canvas id="babylonScene"></canvas>
-	<button id="moveHighlight">&#128099;</button>
+	<div id="moveHighlight">&#128099;</div>
 
 </body></html><script>
-
-/*
-TODO
-- add baking for doors (at least the closed ones)
-- fix wall bake:
-	- fix lack of shadows from signs, fire alarm
-	- fix missing lights from sconces
-	- fix seams
-- get better reflection env
-- automove (demo) option
-- optimize:
-	- sign doesn't need the resolution it has
-	- make ceiling flat with baked
-*/
 
 const col_white = new _b.Color3(1, 1, 1);
 const maxClickDistSquared = 32;
 let MAP_SCALE = 9.4;
 let MAP_OFFSET_X = 178;
 let MAP_OFFSET_Y = 115;
+const ON_MOBILE = (/android|iphone|kindle|ipad/i).test(navigator.userAgent);
 
 let _isAnimating = false;
 let _navById = {};
@@ -157,10 +148,31 @@ function onNavUnhover(value)
 startBabylon('babylonScene', async function()
 {
 	// Camera
-	_e.myCam = new _b.FreeCamera('camera1', _b.Vector3.Zero(), _b.myScene);
+	_e.myCam = new _b.FreeCamera('camera', _b.Vector3.Zero(), _b.myScene);
 	//_e.myCam.setTarget(_b.Vector3.Zero());
 	_e.myCam.attachControl(_b.myCanvas, true);
 	_e.myCam.minZ = 0.01;
+	_e.myCam.inertia = 0.75;
+	//moveHighlight.innerText = _e.myCam.inertia;
+	if (ON_MOBILE)
+	{
+		_e.myCam.invertRotation = true;
+		_e.myCam.inertia = 0.25;
+		_e.myCam.angularSensibility = 125;
+		//moveHighlight.innerText += '+++';
+	}
+
+	// Hide cursor on drag
+	_b.myCanvas.addEventListener('pointerdown', () =>
+	{
+console.log('~~~1');
+	  _b.myCanvas.classList.add('dragged');
+	});
+	_b.myCanvas.addEventListener('pointerup', () =>
+	{
+console.log('~~~2');
+	  _b.myCanvas.classList.remove('dragged');
+	});
 
 	// Scene geometry
 	_e.myGeom = await _b.ImportMeshAsync('pramod_sola.glb', _b.myScene);
@@ -192,7 +204,7 @@ startBabylon('babylonScene', async function()
 	{
 		if (node.name.startsWith('Nav'))
 		{
-			const result = createNav(node.name, node.position, (node.name === 'Nav.001'));
+			const result = createNav(node.name, node.position, (node.name === 'Nav.018'));
 			if (result) startNav = result;
 		}
 	}
@@ -232,7 +244,7 @@ startBabylon('babylonScene', async function()
 		moveToNav(startNav);
 	}
 
-	_e.myCam.setTarget(_e.myCam.position.add(new _b.Vector3(0, 0, -1)));	
+	_e.myCam.setTarget(_e.myCam.position.add(new _b.Vector3(0, 0, 1)));	
 
 	// Disable free-cam movement
 	_e.myCam.keysDown = _e.myCam.keysDownward = _e.myCam.keysLeft = _e.myCam.keysRight = 
@@ -242,22 +254,29 @@ startBabylon('babylonScene', async function()
 	// Map
 	hud = _b.GUI.AdvancedDynamicTexture.CreateFullscreenUI("UI");
 	let map = new _b.GUI.Image("map", "map.png");
+		hud.addControl(map);
 		map.width = "359px";
 		map.height = "249px";
 		map.horizontalAlignment = _b.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
 		map.verticalAlignment = _b.GUI.Control.VERTICAL_ALIGNMENT_TOP;
 		map.left = "10px";
 		map.top = "10px";
-		hud.addControl(map);
 	icon_youAreHere = new BABYLON.GUI.Image("marker", "map_youAreHere.png");
+		hud.addControl(icon_youAreHere);
 		icon_youAreHere.width = "20px";
 		icon_youAreHere.height = "32px";
 		icon_youAreHere.horizontalAlignment = _b.GUI.Control.HORIZONTAL_ALIGNMENT_LEFT;
 		icon_youAreHere.verticalAlignment = _b.GUI.Control.VERTICAL_ALIGNMENT_TOP;
 		icon_youAreHere.transformCenterX = 50 / 100;
 		icon_youAreHere.transformCenterY = 110 / 160;
-		hud.addControl(icon_youAreHere);
-		
+	let logo = new _b.GUI.Image("logo", "logo.png");
+		hud.addControl(logo);
+		logo.width = "228px";
+		logo.height = "118px";
+		logo.horizontalAlignment = _b.GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+		logo.verticalAlignment = _b.GUI.Control.VERTICAL_ALIGNMENT_TOP;
+		logo.left = "-10px";
+		logo.top = "10px";
 
 	// Game tick
 	_b.myScene.registerBeforeRender(() =>
