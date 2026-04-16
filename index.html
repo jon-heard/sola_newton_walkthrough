@@ -46,24 +46,25 @@
 
 </body></html><script>
 
-const col_white = new _b.Color3(1, 1, 1);
-const maxClickDistSquared = 32;
-let MAP_SCALE = 9.4;
-let MAP_OFFSET_X = 178;
-let MAP_OFFSET_Y = 115;
+const RESERVED = [ 1];//, 2, 3, 5, 7 ];
+const COL_WHITE = new _b.Color3(1, 1, 1);
+const MAX_CLICK_TIME = 250;
+const MAP_SCALE = 9.4;
+const MAP_OFFSET_X = 178;
+const MAP_OFFSET_Y = 115;
 const ON_MOBILE = (/android|iphone|kindle|ipad/i).test(navigator.userAgent);
 
 let _isAnimating = false;
 let _navById = {};
 window.navs = [];
 let currentHovered = null;
-let ptrDownPosition = [9999, 9999];
 let hud = null;
 let icon_youAreHere = null;
 
 function moveToNav(nav)
 {
 	if (_isAnimating) return;
+	if (!nav) return;
 
 	// Disable all navs
 	for (const n of window.navs)
@@ -163,25 +164,35 @@ startBabylon('babylonScene', async function()
 	}
 
 	// Hide cursor on drag
-	_b.myCanvas.addEventListener('pointerdown', () =>
+	let pointerDownTime = null;
+	_b.myCanvas.addEventListener('pointerdown', evt =>
 	{
-console.log('~~~1');
-	  _b.myCanvas.classList.add('dragged');
+		pointerDownTime = performance.now();
+		if (evt.pointerType === 'mouse')
+		{
+			_b.myEngine.enterPointerlock();
+		}
 	});
-	_b.myCanvas.addEventListener('pointerup', () =>
+	_b.myCanvas.addEventListener('pointerup', evt =>
 	{
-console.log('~~~2');
-	  _b.myCanvas.classList.remove('dragged');
+		if (evt.pointerType === 'mouse')
+		{
+			_b.myEngine.exitPointerlock();
+		}
+		if (performance.now() - pointerDownTime < MAX_CLICK_TIME)
+		{
+			moveToNav(currentHovered);
+		}
 	});
 
 	// Scene geometry
 	_e.myGeom = await _b.ImportMeshAsync('pramod_sola.glb', _b.myScene);
 
 	// No lighting
-	_b.myScene.ambientColor = col_white;
+	_b.myScene.ambientColor = COL_WHITE;
 	for (const material of _b.myScene.materials)
 	{
-		material.ambientColor = col_white;
+		material.ambientColor = COL_WHITE;
 	}
 
 	// Reflection environment
@@ -198,8 +209,29 @@ console.log('~~~2');
 	_e.navMatHigh = new _b.StandardMaterial("navMatHigh", _b.myScene);
 	_e.navMatHigh.emissiveColor = new _b.Color3(1, 1, 0);
 
-	// Navs
+	// Navs & reserves
 	let startNav = null;
+	window.signs = [];
+	for (const node of _b.myScene.transformNodes)
+	{
+		if (node.name.startsWith('Nav.'))
+		{
+			const result = createNav(node.name, node.position, (node.name === 'Nav.018'));
+			if (result) startNav = result;
+		}
+/*
+		else if (node.name.startsWith('INST_Reserved_Empty.') && RESERVED.includes(parseInt(node.name.slice(20))))
+		{
+			let sign = BABYLON.MeshBuilder.CreateGround('babylon_' + node.name.slice(20), { height: 150, width: 150 });
+			console.log('~~~1', sign.name, node.position, node.rotation);
+			sign.position.copyFrom(node.position);
+			sign.rotation.x = Math.PI / 2;
+			signs.push(sign);
+		}
+*/
+	}
+	
+	// Reserved visuals
 	for (const node of _b.myScene.transformNodes)
 	{
 		if (node.name.startsWith('Nav'))
@@ -207,7 +239,7 @@ console.log('~~~2');
 			const result = createNav(node.name, node.position, (node.name === 'Nav.018'));
 			if (result) startNav = result;
 		}
-	}
+	}	
 
 	// Resolve neighbor relationships (based on array order + comma-specified extras)
 	for (let i = 0; i < window.navs.length; i++)
@@ -304,21 +336,6 @@ console.log('~~~2');
 		icon_youAreHere.left = p.x * -MAP_SCALE + MAP_OFFSET_X;
 		icon_youAreHere.top = p.z * MAP_SCALE + MAP_OFFSET_Y;
 	});
-
-	_b.myCanvas.addEventListener("pointerdown", evt =>
-	{
-		ptrDownPosition[0] = evt.clientX;
-		ptrDownPosition[1] = evt.clientY;
-	});
-	_b.myCanvas.addEventListener("pointerup", evt =>
-	{
-		const ptrPosition = [ evt.clientX, evt.clientY ];
-		const clickDistanceSquared = Math.pow(ptrPosition[0] - ptrDownPosition[0], 2) + Math.pow(ptrPosition[1] - ptrDownPosition[1], 2);
-		if (currentHovered && clickDistanceSquared < maxClickDistSquared)
-		{
-			moveToNav(currentHovered);
-		}
-	});
 	document.getElementById('moveHighlight').addEventListener("click", evt =>
 	{
 		if (currentHovered)
@@ -334,5 +351,20 @@ console.log('~~~2');
 		}
 	});
 });
+
+const adjustCameraFOV = (cam, engine) =>
+{
+    const aspect = engine.getAspectRatio(cam);
+    if (aspect < 1)
+	{
+        cam.fovMode = BABYLON.Camera.FOVMODE_HORIZONTAL_FIXED;
+    }
+	else
+	{
+        cam.fovMode = BABYLON.Camera.FOVMODE_VERTICAL_FIXED;
+    }
+};
+adjustCameraFOV(_e.myCam, _b.myEngine);
+window.addEventListener("resize", () => adjustCameraFOV(_e.myCam, _b.myEngine));
 
 </script>

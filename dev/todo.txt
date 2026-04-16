@@ -1,16 +1,12 @@
-TODO BEFORE RE-BAKE
-	- brighten sconces
 NOT HARD
-	- W - keep mouse at center during drag, then put it back afterwards
+	- B - add baking for doors (at least the closed ones) alongside props
+	/ W - "reserved"
 	- W - UI (bottom.bar, map) should be relative to smaller axis
-	- W - on a thin, tall display, increase the cam width to see more
-	- B - "reserved"
 	- B - get better reflection env (make one?)
-	- B - add baking for doors (at least the closed ones)
+MID
 	- B - sign doesn't need the resolution it has
 	- B - make ceiling flat with baked
 HARD
-	- B - closed doors show parking in back and inside of lobby on right and 	street below
-	- W - free high speed wifi label
+	- W - "Free wifi" label
 	- W - add street view option
 	- W - add auto walk around
