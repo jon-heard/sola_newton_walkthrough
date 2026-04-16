@@ -1,6 +1,7 @@
+21
+
 NOT HARD
-	- B - add baking for doors (at least the closed ones) alongside props
-	/ W - "reserved"
+	/ B - add baking for doors (at least the closed ones) alongside props
 	- W - UI (bottom.bar, map) should be relative to smaller axis
 	- B - get better reflection env (make one?)
 MID

@@ -1,4 +1,12 @@
-<!doctype html><html><head ><title>Sola: Site Walk Tour</title><style>
+<!doctype html><html><head><script>
+
+	const RESERVED = [ 1, 3, 11, 14, 21, 25, 28, 39 ];
+	const MAX_CLICK_DST_SQR = 32;
+	const MAP_SCALE = 9.4;
+	const MAP_OFFSET_X = 178;
+	const MAP_OFFSET_Y = 115;
+
+</script><title>Sola: Site Walk Tour</title><style>
 
 	html,body
 	{
@@ -46,12 +54,7 @@
 
 </body></html><script>
 
-const RESERVED = [ 1];//, 2, 3, 5, 7 ];
 const COL_WHITE = new _b.Color3(1, 1, 1);
-const MAX_CLICK_TIME = 250;
-const MAP_SCALE = 9.4;
-const MAP_OFFSET_X = 178;
-const MAP_OFFSET_Y = 115;
 const ON_MOBILE = (/android|iphone|kindle|ipad/i).test(navigator.userAgent);
 
 let _isAnimating = false;
@@ -60,6 +63,7 @@ window.navs = [];
 let currentHovered = null;
 let hud = null;
 let icon_youAreHere = null;
+let ptrDownPosition = [9999, 9999];
 
 function moveToNav(nav)
 {
@@ -164,22 +168,16 @@ startBabylon('babylonScene', async function()
 	}
 
 	// Hide cursor on drag
-	let pointerDownTime = null;
 	_b.myCanvas.addEventListener('pointerdown', evt =>
 	{
-		pointerDownTime = performance.now();
-		if (evt.pointerType === 'mouse')
-		{
-			_b.myEngine.enterPointerlock();
-		}
+		ptrDownPosition[0] = evt.clientX;
+		ptrDownPosition[1] = evt.clientY;
 	});
 	_b.myCanvas.addEventListener('pointerup', evt =>
 	{
-		if (evt.pointerType === 'mouse')
-		{
-			_b.myEngine.exitPointerlock();
-		}
-		if (performance.now() - pointerDownTime < MAX_CLICK_TIME)
+		const ptrUpPosition = [ evt.clientX, evt.clientY ];
+		const clickDistanceSquared = Math.pow(ptrDownPosition[0] - ptrUpPosition[0], 2) + Math.pow(ptrDownPosition[1] - ptrUpPosition[1], 2);
+		if (currentHovered && clickDistanceSquared < MAX_CLICK_DST_SQR)
 		{
 			moveToNav(currentHovered);
 		}
@@ -197,7 +195,7 @@ startBabylon('babylonScene', async function()
 
 	// Reflection environment
 	const envTexture = BABYLON.CubeTexture.CreateFromPrefilteredData(
-		"https://assets.babylonjs.com/environments/environmentSpecular.env",
+		"reflection.env",
 		_b.myScene
 	);
 	_b.myScene.environmentTexture = envTexture;
@@ -211,24 +209,31 @@ startBabylon('babylonScene', async function()
 
 	// Navs & reserves
 	let startNav = null;
-	window.signs = [];
-	for (const node of _b.myScene.transformNodes)
 	{
-		if (node.name.startsWith('Nav.'))
+		let matReserved = null;
+		for (const node of _b.myScene.transformNodes)
 		{
-			const result = createNav(node.name, node.position, (node.name === 'Nav.018'));
-			if (result) startNav = result;
+			if (node.name.startsWith('Nav.'))
+			{
+				const result = createNav(node.name, node.position, (node.name === 'Nav.018'));
+				if (result) startNav = result;
+			}
+			else if (node.name.startsWith('INST_Reserved_Empty.') && RESERVED.includes(parseInt(node.name.slice(20))))
+			{
+				let sign = BABYLON.MeshBuilder.CreateGround('babylon_' + node.name.slice(20), { height: 0.381/2, width: 1.09728/2 });
+				sign.position.copyFrom(node.position.multiply(new _b.Vector3(-1, 0, 1)));
+				sign.position.y = 1.5
+				sign.rotation.x = -Math.PI / 2;
+				sign.rotation.y = -node.rotationQuaternion.toEulerAngles().y;
+				sign.rotation.z = Math.PI;
+				if (!matReserved)
+				{
+					matReserved = new BABYLON.StandardMaterial('mat_reserved');
+					matReserved.emissiveTexture = new BABYLON.Texture('reserved.png');
+				}
+				sign.material = matReserved;
+			}
 		}
-/*
-		else if (node.name.startsWith('INST_Reserved_Empty.') && RESERVED.includes(parseInt(node.name.slice(20))))
-		{
-			let sign = BABYLON.MeshBuilder.CreateGround('babylon_' + node.name.slice(20), { height: 150, width: 150 });
-			console.log('~~~1', sign.name, node.position, node.rotation);
-			sign.position.copyFrom(node.position);
-			sign.rotation.x = Math.PI / 2;
-			signs.push(sign);
-		}
-*/
 	}
 	
 	// Reserved visuals
