@@ -2,9 +2,9 @@
 
 	const RESERVED = [ 1, 3, 11, 14, 21, 25, 28, 39 ];
 	const MAX_CLICK_DST_SQR = 32;
-	const MAP_SCALE = 9.4;
-	const MAP_OFFSET_X = 178;
-	const MAP_OFFSET_Y = 115;
+	window.MAP_SCALE = 9.4;
+	window.MAP_OFFSET_X = 301;
+	window.MAP_OFFSET_Y = 223;
 
 </script><title>Sola: Site Walk Tour</title><style>
 
@@ -47,7 +47,7 @@
 		border: orange outset 8px;
 	}
 
-</style><link rel="icon" href="icon.png"><script src="https://cdn.babylonjs.com/babylon.js"></script><script src="babylon_helper.js"></script><script src="babylonjs.loaders.min.js"></script><script src="babylon.gui.min.js"></script></head><body>
+</style><link rel="icon" href="icon.png"><script src="babylon.js"></script><script src="babylon_helper.js"></script><script src="babylonjs.loaders.min.js"></script><script src="babylon.gui.min.js"></script></head><body>
 
 	<canvas id="babylonScene"></canvas>
 	<div id="moveHighlight">&#128099;</div>
@@ -74,7 +74,6 @@ function moveToNav(nav)
 	for (const n of window.navs)
 	{
 		n.hitbox.isPickable = false;
-		n.material = _e.navMatNorm;
 		n.setEnabled(false);
 	}
 
@@ -118,17 +117,16 @@ function createNav(name, position, isStart)
 	const navId = idMatch ? parseInt(idMatch[1], 10) : null;
 	const extraNeighborId = commaMatch ? parseInt(commaMatch[1], 10) : null;
 
-	const newNav = _b.MeshBuilder.CreateBox(name, {}, _b.myScene);
+	const newNav = _b.MeshBuilder.CreateBox(name);
 	newNav.metadata = { isNavNode: true };
 	newNav.navId = navId;
 	newNav.extraNeighborId = extraNeighborId;
 	_navById[navId] = newNav;
 	newNav.scaling.setAll(.25);
-	newNav.material = _e.navMatNorm;
 	newNav.position.copyFrom(position.multiply(new _b.Vector3(-1, 0, 1)));
 	newNav.visibility = 0;
 
-	newNav.hitbox = _b.MeshBuilder.CreateBox("navHitbox", {size: 1.5, height: 2}, _b.myScene);
+	newNav.hitbox = _b.MeshBuilder.CreateBox("navHitbox", {size: 1.5, height: 2});
 	newNav.hitbox.position.copyFrom(newNav.position);
 	newNav.hitbox.metadata = { isNavHitbox: true, naveNode: newNav };
 	newNav.hitbox.position.y = 1;
@@ -140,20 +138,17 @@ function createNav(name, position, isStart)
 
 function onNavHover(value)
 {
-	value.material = _e.navMatHigh;
 	document.getElementById('moveHighlight').classList.add('hovering');
 }
-
 function onNavUnhover(value)
 {
-	value.material = _e.navMatNorm;
 	document.getElementById('moveHighlight').classList.remove('hovering');
 }
 
 startBabylon('babylonScene', async function()
 {
 	// Camera
-	_e.myCam = new _b.FreeCamera('camera', _b.Vector3.Zero(), _b.myScene);
+	_e.myCam = new _b.FreeCamera('camera', _b.Vector3.Zero());
 	//_e.myCam.setTarget(_b.Vector3.Zero());
 	_e.myCam.attachControl(_b.myCanvas, true);
 	_e.myCam.minZ = 0.01;
@@ -184,7 +179,28 @@ startBabylon('babylonScene', async function()
 	});
 
 	// Scene geometry
-	_e.myGeom = await _b.ImportMeshAsync('pramod_sola.glb', _b.myScene);
+	_e.myGeom = await _b.ImportMeshAsync('scene.glb');
+
+	// Fix light maps
+	_e.myGeom.meshes.forEach(mesh =>
+	{
+		const materials = mesh.material?.subMaterials || [mesh.material];
+		materials.forEach(mat => {
+			if (mat && mat.ambientTexture)
+			{
+				mat.lightmapTexture = mat.ambientTexture;
+				mat.ambientTexture = null;
+				mat.useLightmapAsShadowmap = true;
+				//mat.lightmapTexture.coordinatesIndex = 0;
+			}
+		});
+    });
+	
+	// Freeze meshes (optimization)
+	_e.myGeom.meshes.forEach(mesh =>
+	{
+		mesh.freezeWorldMatrix();
+	});
 
 	// No lighting
 	_b.myScene.ambientColor = COL_WHITE;
@@ -194,28 +210,22 @@ startBabylon('babylonScene', async function()
 	}
 
 	// Reflection environment
-	const envTexture = BABYLON.CubeTexture.CreateFromPrefilteredData(
-		"reflection.env",
-		_b.myScene
-	);
-	_b.myScene.environmentTexture = envTexture;
+	_b.myScene.environmentTexture = BABYLON.CubeTexture.CreateFromPrefilteredData("reflection.env", _b.myScene);
 	_b.myScene.environmentIntensity = 0.5;
-
-	// Nav-node materials
-	_e.navMatNorm = new _b.StandardMaterial("navMatNorm", _b.myScene);
-	_e.navMatNorm.emissiveColor = new _b.Color3(0.25, 0.25, 0.25);
-	_e.navMatHigh = new _b.StandardMaterial("navMatHigh", _b.myScene);
-	_e.navMatHigh.emissiveColor = new _b.Color3(1, 1, 0);
 
 	// Navs & reserves
 	let startNav = null;
 	{
 		let matReserved = null;
+		window.tst1 = [];
 		for (const node of _b.myScene.transformNodes)
 		{
 			if (node.name.startsWith('Nav.'))
 			{
+				// Start @ entrance
 				const result = createNav(node.name, node.position, (node.name === 'Nav.018'));
+				// Start @ break room
+				//const result = createNav(node.name, node.position, (node.name === 'Nav.126,036'));
 				if (result) startNav = result;
 			}
 			else if (node.name.startsWith('INST_Reserved_Empty.') && RESERVED.includes(parseInt(node.name.slice(20))))
@@ -235,16 +245,6 @@ startBabylon('babylonScene', async function()
 			}
 		}
 	}
-	
-	// Reserved visuals
-	for (const node of _b.myScene.transformNodes)
-	{
-		if (node.name.startsWith('Nav'))
-		{
-			const result = createNav(node.name, node.position, (node.name === 'Nav.018'));
-			if (result) startNav = result;
-		}
-	}	
 
 	// Resolve neighbor relationships (based on array order + comma-specified extras)
 	for (let i = 0; i < window.navs.length; i++)
@@ -306,6 +306,11 @@ startBabylon('babylonScene', async function()
 		icon_youAreHere.verticalAlignment = _b.GUI.Control.VERTICAL_ALIGNMENT_TOP;
 		icon_youAreHere.transformCenterX = 50 / 100;
 		icon_youAreHere.transformCenterY = 110 / 160;
+		icon_youAreHere.alpha = 0; // Hide until the scene is loaded
+		_b.myScene.executeWhenReady(() =>
+		{
+			icon_youAreHere.alpha = 1;
+		});
 	let logo = new _b.GUI.Image("logo", "logo.png");
 		hud.addControl(logo);
 		logo.width = "228px";

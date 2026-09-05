@@ -1,13 +1,20 @@
-21
-
-NOT HARD
-	/ B - add baking for doors (at least the closed ones) alongside props
-	- W - UI (bottom.bar, map) should be relative to smaller axis
-	- B - get better reflection env (make one?)
-MID
-	- B - sign doesn't need the resolution it has
+BLENDER
+	- B - merge un-instanced objects (chairs, signs, etc)
+	- B - add more modern art
+	- B - separate diffuse and lighting for:
+		- marble
+		- chairs
+		- washer/dryers
+	- B - tweak the room lights - lower point lights for more diffuse glow
+	- B - rebake props 1 and 2
+	- B - reduce prop 1 and 2 light tex sizes
+	- B - cut floor quad into just what is needed.  Redo light uvs.  Reduce light tex size.
+	- B - raise res of walls, rebake / denoise, reduce res of walls, manually  denoise where necessary
 	- B - make ceiling flat with baked
-HARD
+	- B - get better reflection env (make one?)
+	- B - replace outside textures with higher res ones (or maybe just use ai to raise res on existing ones)
+WEB APP
+	- W - UI (bottom.bar, map) should be relative to smaller axis
 	- W - "Free wifi" label
 	- W - add street view option
 	- W - add auto walk around
